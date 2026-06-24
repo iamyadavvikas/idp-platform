@@ -1,0 +1,71 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-app-dev
+  namespace: argocd
+spec:
+  project: demo-app
+  source:
+    repoURL: "https://github.com/sflyinc-shutterfly/idp-platform.git"
+    targetRevision: main
+    path: argo-rollouts/demo-app
+    kustomize:
+      overlays:
+        - name: env
+          value: dev
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: demo-app-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-monitoring
+  namespace: argocd
+spec:
+  project: platform-tools
+  source:
+    repoURL: "https://github.com/sflyinc-shutterfly/idp-platform.git"
+    targetRevision: main
+    path: monitoring
+    directory:
+      recurse: true
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-secrets
+  namespace: argocd
+spec:
+  project: platform-tools
+  source:
+    repoURL: "https://github.com/sflyinc-shutterfly/idp-platform.git"
+    targetRevision: main
+    path: external-secrets
+    directory:
+      recurse: true
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: external-secrets
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

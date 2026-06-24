@@ -1,0 +1,13 @@
+environment       = "prod"
+region            = "us-east-1"
+vpc_cidr          = "10.2.0.0/16"
+az_count          = 3
+enable_nat_gateway = true
+kubernetes_version = "1.29"
+node_instance_types  = ["m6i.large", "m5.large", "c6i.large"]
+node_desired_size    = 5
+node_min_size        = 3
+node_max_size        = 15
+enable_spot_nodes    = false
+create_dns_zone      = true
+domain_name          = "idp.example.com"

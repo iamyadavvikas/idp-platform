@@ -1,0 +1,80 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+
+env:
+  AWS_REGION: us-east-1
+  TF_STATE_BUCKET: idp-terraform-state
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    name: "Terraform Plan - ${{ matrix.environment }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, stage, prod]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::ACCOUNT_ID:role/github-actions-terraform
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Terraform Init
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: terraform init
+
+      - name: Terraform Format
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: terraform fmt -check || echo "::warning::Terraform formatting issues found"
+
+      - name: Terraform Validate
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: terraform/environments/${{ matrix.environment }}
+        run: terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
+
+      - name: Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate Infracost Breakdown
+        run: |
+          infracost breakdown \
+            --path terraform/environments/${{ matrix.environment }} \
+            --terraform-plan-file terraform/environments/${{ matrix.environment }}/tfplan \
+            --format table \
+            --out-file /tmp/infracost-${{ matrix.environment }}.txt
+
+      - name: Post Plan Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/environments/${{ matrix.environment }}/plan.txt', 'utf8');
+            const cost = fs.readFileSync(`/tmp/infracost-${{ matrix.environment }}.txt`, 'utf8');
+            const body = `## Terraform Plan: ${{ matrix.environment }}\n\`\`\`\n${plan.slice(0, 3000)}\n\`\`\`\n### Infracost\n\`\`\`\n${cost}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

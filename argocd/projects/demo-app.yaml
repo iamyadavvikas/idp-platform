@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: demo-app
+  namespace: argocd
+spec:
+  description: "Demo application project for IDP"
+  sourceRepos:
+    - "https://github.com/sflyinc-shutterfly/idp-platform.git"
+  destinations:
+    - namespace: "demo-app-*"
+      server: "https://kubernetes.default.svc"
+    - namespace: "demo-app"
+      server: "https://kubernetes.default.svc"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: "Namespace"
+  orphanedResources:
+    warn: true
+  roles:
+    - name: developer
+      policies:
+        - p, proj:demo-app:developer, applications, sync, demo-app/*, allow
+        - p, proj:demo-app:developer, applications, get, demo-app/*, allow
+      groups:
+        - "developers"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-tools
+  namespace: argocd
+spec:
+  description: "Platform-wide tools (monitoring, ingress, secrets)"
+  sourceRepos:
+    - "https://github.com/sflyinc-shutterfly/idp-platform.git"
+    - "https://prometheus-community.github.io/helm-charts"
+    - "https://grafana.github.io/helm-charts"
+    - "https://argoproj.github.io/argo-helm"
+  destinations:
+    - namespace: "*"
+      server: "https://kubernetes.default.svc"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"

@@ -1,0 +1,11 @@
+environment       = "stage"
+region            = "us-east-1"
+vpc_cidr          = "10.1.0.0/16"
+az_count          = 3
+enable_nat_gateway = true
+kubernetes_version = "1.29"
+node_instance_types  = ["m6i.large", "m5.large"]
+node_desired_size    = 3
+node_min_size        = 2
+node_max_size        = 8
+enable_spot_nodes    = true

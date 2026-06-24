@@ -1,0 +1,23 @@
+version: 0.1
+
+projects:
+  - path: terraform/environments/dev
+    name: idp-dev
+    usage_file: dev-usage.yml
+  - path: terraform/environments/stage
+    name: idp-stage
+    usage_file: stage-usage.yml
+  - path: terraform/environments/prod
+    name: idp-prod
+    usage_file: prod-usage.yml
+
+output-formats:
+  - html
+  - json
+  - table
+
+currency: USD
+
+terraform:
+  terraform_plan_flags:
+    - "-var-file=terraform.tfvars"
