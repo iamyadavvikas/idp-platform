@@ -20,6 +20,22 @@ _A self-service GitOps platform where a developer pushes YAML and ArgoCD handles
 
 ---
 
+## Dashboard Preview
+
+### Healthy State — 1% Error Rate
+![Healthy Dashboard](screenshots/1-healthy.png)
+> Canary is stable, gauge is green, error rate graph is flat, all requests succeeding.
+
+### Bad Version Deployed — 15%+ Error Rate
+![Bad Version](screenshots/2-bad-version.png)
+> Error rate spikes, gauge turns red, canary shows step progression, requests returning 500s.
+
+### Auto-Rollback Triggered
+![Rollback Overlay](screenshots/3-rollback.png)
+> Argo Rollouts detects failure, overlay fires with countdown, terminal logs the rollback in real-time.
+
+---
+
 ## The Solution (Step by Step)
 
 This project solves all of the above by building a complete Internal Developer Platform. Here's how it works, step by step:
