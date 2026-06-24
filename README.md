@@ -4,7 +4,7 @@ _A self-service GitOps platform where a developer pushes YAML and ArgoCD handles
 
 ---
 
-## The Problem (Explain This to an Interviewer)
+## The Problem 
 
 **Scenario:** You're a platform engineering team at a company with 50+ developers. Every time a developer wants to deploy a new service or update an existing one, they have to open a ticket with the DevOps team. The DevOps team manually provisions infrastructure (VPCs, clusters, IAM roles), configures monitoring, sets up secrets, and deploys the application.
 
