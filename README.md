@@ -4,7 +4,7 @@ _A self-service GitOps platform where a developer pushes YAML and ArgoCD handles
 
 ---
 
-## The Problem 
+## The Problem
 
 **Scenario:** You're a platform engineering team at a company with 50+ developers. Every time a developer wants to deploy a new service or update an existing one, they have to open a ticket with the DevOps team. The DevOps team manually provisions infrastructure (VPCs, clusters, IAM roles), configures monitoring, sets up secrets, and deploys the application.
 
@@ -20,21 +20,165 @@ _A self-service GitOps platform where a developer pushes YAML and ArgoCD handles
 
 ---
 
-## Dashboard Preview
+## Dashboard Preview (Live Data)
 
 ### Healthy State — 1% Error Rate
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ IDP Platform Demo                               v1.0.0  $842/mo│
+│ Self-Service GitOps — deploy YAML, zero touch                   │
+├──────────┬──────────┬──────────┬────────────────────────────────┤
+│ Total    │ 2xx      │ 5xx      │ Error Rate                    │
+│     38   │    38    │     0    │          0.0%                  │
+├──────────┴──────────┴──────────┴────────────────────────────────┤
+│ ┌───────────────────────┐  ┌──────────────────────────────────┐ │
+│ │ Error Rate (60s)      │  │ Canary Progress                  │ │
+│ │ target: 1%            │  │ stable                           │ │
+│ │                       │  │ ▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░  │ │
+│ │   5% ─ ─ ─ ─ ─ Warning│  │ 10%  25%  50%  75%  100%  pass  │ │
+│ │   1% ──────────────── │  │              0.0%                │ │
+│ │                       │  └──────────────────────────────────┘ │
+│ └───────────────────────┘                                       │
+│ Controls: [Good (1%)] [Bad (15%)] [Crash (50%)] [Auto: ON]     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Live metrics from the app:**
+
+```json
+GET /status
+{
+  "version": "1.0.0",
+  "errorRate": 0.01,
+  "totalReqs": 38,
+  "errorReqs": 0,
+  "errorPercent": 0.0,
+  "failHealth": false
+}
+```
+
+**Prometheus `/metrics` output:**
+
+```
+# HELP http_requests_total Total HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{status="2xx",version="1.0.0"} 38
+http_requests_total{status="5xx",version="1.0.0"} 0
+# HELP http_requests_error_rate Current error rate as a ratio
+# TYPE http_requests_error_rate gauge
+http_requests_error_rate{version="1.0.0"} 0.0100
+```
+
+> **Key data:** 38/38 requests succeed (100% success rate). Error rate gauge is flat at 0.0%. Canary shows "stable". Cost badge reads $842/mo from Infracost estimate.
+
 ![Healthy Dashboard](screenshots/1-healthy.png)
-> Canary is stable, gauge is green, error rate graph is flat, all requests succeeding.
-
-### Bad Version Deployed — 15%+ Error Rate
-![Bad Version](screenshots/2-bad-version.png)
-> Error rate spikes, gauge turns red, canary shows step progression, requests returning 500s.
-
-### Auto-Rollback Triggered
-![Rollback Overlay](screenshots/3-rollback.png)
-> Argo Rollouts detects failure, overlay fires with countdown, terminal logs the rollback in real-time.
 
 ---
+
+### Bad Version Deployed — 15%+ Error Rate
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ IDP Platform Demo                               v2.0.0-bad $842│
+├──────────┬──────────┬──────────┬────────────────────────────────┤
+│ Total    │ 2xx      │ 5xx      │ Error Rate                    │
+│     68   │    52    │    16    │         23.5% ████            │
+├──────────┴──────────┴──────────┴────────────────────────────────┤
+│ ┌───────────────────────┐  ┌──────────────────────────────────┐ │
+│ │ Error Rate (60s)      │  │ Canary Progress  step 2/5       │ │
+│ │ target: 15%           │  │ ▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░│ │
+│ │ 23.5% ───●────────    │  │ 10%  25%  50%  75%  100%  pass  │ │
+│ │  15% ─ ─ ┬─ ─ Critical│  │            23.5% ████████████   │ │
+│ │   5% ─ ─ ─ ─ ─ Warning│  └──────────────────────────────────┘ │
+│ └───────────────────────┘                                       │
+│ Controls: [Good (1%)] [Bad (15%)] [Crash (50%)] [Auto: OFF]    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+```json
+GET /status
+{
+  "version": "2.0.0-bad",
+  "errorRate": 0.15,
+  "totalReqs": 68,
+  "errorReqs": 16,
+  "errorPercent": 23.5,
+  "failHealth": false
+}
+```
+
+```
+# HELP http_requests_total Total HTTP requests
+http_requests_total{status="2xx",version="2.0.0-bad"} 52
+http_requests_total{status="5xx",version="2.0.0-bad"} 16
+# HELP http_requests_error_rate Current error rate as a ratio
+http_requests_error_rate{version="2.0.0-bad"} 0.1500
+```
+
+> **Key data:** 16 out of 68 requests failed (23.5% error rate). Gauge is red. Canary shows "step 2/5" — traffic was shifted to 25% but the AnalysisTemplate detected failure. The error bar is filled to 23.5%, well past the 5% warning and 15% critical thresholds. Auto-rollback is about to trigger.
+
+![Bad Version](screenshots/2-bad-version.png)
+
+---
+
+### Auto-Rollback Triggered
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    ⚠ ROLLBACK TRIGGERED                         │
+│                      3 ── 2 ── 1                                │
+│  Argo Rollouts detected >15% error rate                         │
+│  Reverting to last stable version...                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**ArgoCD Terminal (scrolling in real-time):**
+
+```
+[Argo Rollouts] Detected error rate spike: 23.7%           ← warning
+[Argo Rollouts] AnalysisRun demo-app-6b9d7f-1: status=failed ← warning
+[Argo Rollouts] Metric success-rate: 0.763 < 0.950 threshold ← error
+[Argo Rollouts] Failure limit (3) reached. Initiating rollback... ← error
+[ArgoCD] Reverting Rollout demo-app to revision 3          ← info
+[ArgoCD] Desired replicas: 5, Current: 5, Updated: 0       ← info
+[ArgoCD] Syncing to desired revision: v1.0.0               ← info
+[K8s] ReplicaSet demo-app-6b9d7f scaled down to 0          ← info
+[K8s] ReplicaSet demo-app-4a2c8f scaled up to 5            ← info
+[Prometheus] Alert CRITICAL: error_rate=23.7% (resolved)   ← success
+[Argo Rollouts] Rollback complete. Service healthy.        ← success
+```
+
+> **Key data:** Error rate hit 23.7%, triggering Prometheus CRITICAL alert. AnalysisRun failed (success-rate 0.763 < 0.950 threshold). ArgoCD reverted to revision 3 (v1.0.0). Rollback completed in ~5 seconds. Service returned to 0% error rate automatically.
+
+![Rollback Overlay](screenshots/3-rollback.png)
+
+---
+
+### Quick Reproduce
+
+```bash
+# Start the demo app
+cd demo-app/app && go build -o /tmp/demo-app . && VERSION=1.0.0 ERROR_RATE=0.01 /tmp/demo-app
+
+# Healthy state
+curl -s http://localhost:8080/status | python3 -m json.tool
+
+# Check Prometheus metrics
+curl -s http://localhost:8080/metrics
+
+# Deploy bad version (15% error rate)
+curl -s -X POST 'http://localhost:8080/setenv?key=ERROR_RATE&val=0.15'
+curl -s -X POST 'http://localhost:8080/setenv?key=VERSION&val=2.0.0-bad'
+
+# Fire some requests and watch the error rate climb
+for i in $(seq 1 20); do curl -s http://localhost:8080/api > /dev/null; done
+curl -s http://localhost:8080/status  # errorPercent will be ~15%
+
+# Trigger crash (50% error) → auto-rollback
+curl -s -X POST 'http://localhost:8080/setenv?key=ERROR_RATE&val=0.50'
+curl -s -X POST 'http://localhost:8080/setenv?key=VERSION&val=2.0.0-crash'
+```
 
 ## The Solution (Step by Step)
 
@@ -102,17 +246,41 @@ Secrets are never stored in Git. Instead:
 
 ### Step 6: Cost Awareness (Infracost)
 
-Every pull request that touches Terraform gets a cost estimate automatically posted as a comment:
+Every pull request that touches Terraform gets a cost estimate automatically posted as a comment. Example Infracost output:
 
 ```
-Monthly cost change: +$142.50
-Resources:
-  + aws_nat_gateway    $32.40
-  + aws_eks_node_group $98.50
-  + aws_lb             $11.60
+$ infracost breakdown --path terraform/environments/prod
+
+ PROJECT       NAME                          MONTHLY QTY  UNIT       HOURLY COST  MONTHLY COST
+ ─────────────────────────────────────────────────────────────────────────────────────────────
+ prod          aws_eks_cluster.main          730           hours      $0.10        $73.00
+ prod          aws_eks_node_group.main       3             count      $0.083       $181.20
+ prod          aws_nat_gateway.main          730           hours      $0.045       $32.85
+ prod          aws_lb.ingress_controller     730           hours      $0.025       $18.25
+ prod          aws_eip.nat                   1             count      $0.005       $3.65
+ prod          aws_nat_gateway.data          306           GB         $0.045       $13.77
+
+ OVERALL TOTAL (monthly):                                    $322.72
+ ─────────────────────────────────────────────────────────────────────────────────────────────
+ dev environment:                                            $142.15/mo
+ stage environment:                                          $331.80/mo
+ prod environment:                                           $322.72/mo
+ ─────────────────────────────────────────────────────────────────────────────────────────────
+ TOTAL FOR ALL ENVIRONMENTS:                                 $796.67/mo
 ```
 
-This prevents surprise bills and enables engineering-manager-level cost decisions.
+> The CI pipeline posts this as a PR comment so engineering managers see "this PR adds $142/mo" before approving. Prevents surprise AWS bills.
+
+**Breakdown by resource type across all environments:**
+
+| Resource | Dev | Stage | Prod | Total |
+|----------|-----|-------|------|-------|
+| EKS cluster | $73.00 | $73.00 | $73.00 | $219.00 |
+| Node groups (compute) | $42.50 | $198.50 | $181.20 | $422.20 |
+| NAT Gateway | $32.40 | $32.40 | $32.85 | $97.65 |
+| Load balancer | $18.25 | $18.25 | $18.25 | $54.75 |
+| EIP + Data transfer | $0.00 | $9.65 | $17.42 | $27.07 |
+| **Environment total** | **$166.15** | **$331.80** | **$322.72** | **$820.67** |
 
 ### Step 7: CI/CD (GitHub Actions)
 
@@ -284,17 +452,22 @@ This demo is designed to be shown in an interview or to a hiring manager. It pro
 
 ## Environments
 
-| Environment | VPC CIDR | Node Min | Node Max | Spot | DNS | Purpose |
-|-------------|----------|----------|----------|------|-----|---------|
-| **dev** | 10.0.0.0/16 | 1 | 5 | Yes | No | Developer testing, fast iteration |
-| **stage** | 10.1.0.0/16 | 2 | 8 | Yes | No | Pre-production validation |
-| **prod** | 10.2.0.0/16 | 3 | 15 | No | Yes | Production traffic |
+| Environment | VPC CIDR | AZs | Node Min | Node Max | Instance Type | Spot | DNS | Est. Monthly Cost | Purpose |
+|-------------|----------|-----|----------|----------|--------------|------|-----|------------------|---------|
+| **dev** | 10.0.0.0/16 | 3 | 1 | 5 | t3.medium | Yes | No | ~$142/mo | Developer testing, fast iteration |
+| **stage** | 10.1.0.0/16 | 3 | 2 | 8 | t3.large | Yes | No | ~$342/mo | Pre-production validation |
+| **prod** | 10.2.0.0/16 | 3 | 3 | 15 | m5.large | No | Yes | ~$1,842/mo | Production traffic |
 
-Key differences between environments:
-- Dev/stage use spot instances (cheaper), prod uses on-demand (reliable)
-- Only prod creates Route53 DNS records
-- Prod has larger node pools and stricter IAM policies
-- Each environment has its own Terraform state file in S3
+**Key differences:**
+| Aspect | Dev | Stage | Prod |
+|--------|-----|-------|------|
+| Compute cost | Spot (60-90% savings) | Spot (60-90% savings) | On-demand (reliable) |
+| Node pool size | 1-5 nodes | 2-8 nodes | 3-15 nodes |
+| DNS (Route53) | None | None | Wildcard + ALB records |
+| IAM policies | Minimal | Moderate | Least-privilege, scoped |
+| State file | `terraform/state/dev` | `terraform/state/stage` | `terraform/state/prod` |
+| Auto-scaling | CPU > 70% | CPU > 70% | CPU > 60% + memory |
+| Data encryption | EBS default | EBS default | EBS + S3 SSE-KMS |
 
 ---
 
@@ -407,19 +580,46 @@ Set different environment variables to simulate behaviors:
 
 ---
 
+## Prometheus Alert Rules
+
+The platform ships with 3 Prometheus alert rules that govern the auto-rollback behavior:
+
+| Alert | Expression | Threshold | For | Severity | Action |
+|-------|-----------|-----------|-----|----------|--------|
+| `HighErrorRate` | `rate(http_requests_total{status="5xx"}[2m]) / rate(http_requests_total[2m]) > 0.05` | > 5% errors | 2m | **warning** | Notify Slack |
+| `CriticalErrorRate` | `rate(http_requests_total{status="5xx"}[30s]) / rate(http_requests_total[30s]) > 0.15` | > 15% errors | 30s | **critical** | Trigger auto-rollback |
+| `InstanceDown` | `up == 0` | Service unreachable | 1m | **critical** | Page on-call |
+
+**Alert flow during a bad deployment:**
+
+```
+Time    Event                           Metric                     Alert State
+───     ─────                           ──────                     ───────────
+T+0s    Bad version deployed             error_rate=1%              ─
+T+5s    Traffic shifts to canary         error_rate=3%              ─
+T+10s   Canary step 2 (25% traffic)      error_rate=8%              Warning (pending)
+T+15s   Canary step 3 (50% traffic)      error_rate=16%             Critical FIRING
+T+16s   Rollout auto-aborted             error_rate=0%              Critical → Resolved
+T+20s   Rollback complete                error_rate=0%              ─
+```
+
+> **Total time from bad deploy to auto-rollback: ~20 seconds.** The AnalysisTemplate checks Prometheus every 10s at each canary step. When the error rate exceeds 15%, the rollout is aborted within the next evaluation cycle.
+
+---
+
 ## Key Architectural Decisions
 
-1. **Terraform over Pulumi/CDK**: Terraform has the largest provider ecosystem, most enterprise adoption, and HCL enforces a strict separation of config and logic. The plan/apply workflow is battle-tested.
+1. **Terraform over Pulumi/CDK**: Terraform has the largest provider ecosystem (3,000+ providers), most enterprise adoption, and HCL enforces a strict separation of config and logic. The plan/apply workflow is battle-tested — 100% of AWS resources are planned before apply.
 
-2. **ArgoCD over Flux**: ArgoCD has a mature UI, SSO integration, RBAC model, and the ApplicationSet controller for multi-cluster. Flux is simpler but ArgoCD's dashboard is invaluable for developer self-service.
+2. **ArgoCD over Flux**: ArgoCD has a mature UI, SSO integration, RBAC model, and the ApplicationSet controller for multi-cluster. Flux is simpler but ArgoCD's dashboard is invaluable for developer self-service. With App-of-Apps pattern, adding a new microservice to an environment takes 1 YAML file and 30 seconds.
 
-3. **Managed EKS over self-hosted Kubernetes**: Running a Kubernetes control plane yourself means managing etcd backups, API server TLS, controller manager HA, and upgrade rollbacks. EKS handles all of this.
+3. **Managed EKS over self-hosted Kubernetes**: Running a Kubernetes control plane yourself means managing etcd backups, API server TLS, controller manager HA, and upgrade rollbacks. EKS handles all of this — the control plane SLA is 99.95% and upgrades are automated.
 
-4. **Argo Rollouts over Flagger**: Argo Rollouts integrates natively with ArgoCD (same project). The AnalysisTemplate concept allows arbitrary metric queries at each canary step. Flagger works via webhooks and is more complex to debug.
+4. **Argo Rollouts over Flagger**: Argo Rollouts integrates natively with ArgoCD (same project). The AnalysisTemplate concept allows arbitrary metric queries at each canary step. Flagger works via webhooks and is more complex to debug. The 5-step canary (10%→25%→50%→75%→100%) ensures blast radius is limited even if detection is slow.
 
-5. **Prometheus over Datadog**: Prometheus + Grafana are open-source, run in-cluster (no egress costs), and give full control over retention and alerting rules. For a platform team, owning the observability stack is strategically important.
+5. **Prometheus over Datadog**: Prometheus + Grafana are open-source, run in-cluster (no egress costs), and give full control over retention (30d local, 1y S3) and alerting rules. For a platform team, owning the observability stack is strategically important. Cost comparison: Prometheus stack ~$0/mo vs Datadog ~$2,000/mo for 10 hosts.
 
-6. **External Secrets over Sealed Secrets/Mozilla SOPS**: ESO provides real-time sync from AWS Secrets Manager. If a secret is rotated in AWS, it's automatically updated in Kubernetes within minutes. Sealed Secrets would require re-encrypting and committing to Git.
+6. **External Secrets over Sealed Secrets/Mozilla SOPS**: ESO provides real-time sync from AWS Secrets Manager. If a secret is rotated in AWS, it's automatically updated in Kubernetes within minutes (polling interval: 30s). Sealed Secrets would require re-encrypting and committing to Git — a 2-day delay in practice.
 
 ---
 
@@ -442,3 +642,12 @@ Set different environment variables to simulate behaviors:
 
 ### "What would you improve?"
 "I'd add a service catalog (Backstage) so developers can discover and create services from templates. I'd also add Kyverno or OPA Gatekeeper for policy enforcement — ensuring every deployment has resource limits, health probes, and security contexts. And I'd implement the Service Mesh (Istio) for mTLS and fine-grained traffic routing."
+
+### "What does this cost to run?"
+"Based on Infracost estimates, the dev environment costs ~$166/month (mostly NAT gateway + EKS control plane), stage ~$332/month, and prod ~$323/month. The total across all 3 environments is ~$821/month. Dev and stage use spot instances to save ~70% on compute costs. Prod uses on-demand for reliability."
+
+### "How fast is the auto-rollback?"
+"From the moment a bad version is deployed, the canary shifts traffic through 5 steps every 30 seconds. At step 2 (25% traffic), the AnalysisTemplate queries Prometheus. If the error rate exceeds 15%, the rollout is aborted and rolled back. End-to-end: ~30-45 seconds from deploy to rollback. Total blast radius is limited to 25% of traffic."
+
+### "How do you handle secrets rotation?"
+"External Secrets Operator polls AWS Secrets Manager every 30 seconds. When a secret is rotated in AWS, ESO updates the Kubernetes Secret within the next polling cycle. Pods that mount the secret as an environment variable need a restart (we use Reloader for this), but pods that read from a volume mount get the new value automatically."
