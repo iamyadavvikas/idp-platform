@@ -26,7 +26,7 @@ _A self-service GitOps platform where a developer pushes YAML and ArgoCD handles
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ IDP Platform Demo                               v1.0.0  $842/mo│
+│ IDP Platform Demo                               v1.0.0  $797/mo│
 │ Self-Service GitOps — deploy YAML, zero touch                   │
 ├──────────┬──────────┬──────────┬────────────────────────────────┤
 │ Total    │ 2xx      │ 5xx      │ Error Rate                    │
@@ -70,7 +70,7 @@ http_requests_total{status="5xx",version="1.0.0"} 0
 http_requests_error_rate{version="1.0.0"} 0.0100
 ```
 
-> **Key data:** 38/38 requests succeed (100% success rate). Error rate gauge is flat at 0.0%. Canary shows "stable". Cost badge reads $842/mo from Infracost estimate.
+> **Key data:** 38/38 requests succeed (100% success rate). Error rate gauge is flat at 0.0%. Canary shows "stable". Cost badge reads $797/mo (total across all 3 environments from Infracost).
 
 ![Healthy Dashboard](screenshots/1-healthy.png)
 
@@ -271,16 +271,7 @@ $ infracost breakdown --path terraform/environments/prod
 
 > The CI pipeline posts this as a PR comment so engineering managers see "this PR adds $142/mo" before approving. Prevents surprise AWS bills.
 
-**Breakdown by resource type across all environments:**
 
-| Resource | Dev | Stage | Prod | Total |
-|----------|-----|-------|------|-------|
-| EKS cluster | $73.00 | $73.00 | $73.00 | $219.00 |
-| Node groups (compute) | $42.50 | $198.50 | $181.20 | $422.20 |
-| NAT Gateway | $32.40 | $32.40 | $32.85 | $97.65 |
-| Load balancer | $18.25 | $18.25 | $18.25 | $54.75 |
-| EIP + Data transfer | $0.00 | $9.65 | $17.42 | $27.07 |
-| **Environment total** | **$166.15** | **$331.80** | **$322.72** | **$820.67** |
 
 ### Step 7: CI/CD (GitHub Actions)
 
@@ -455,8 +446,8 @@ This demo is designed to be shown in an interview or to a hiring manager. It pro
 | Environment | VPC CIDR | AZs | Node Min | Node Max | Instance Type | Spot | DNS | Est. Monthly Cost | Purpose |
 |-------------|----------|-----|----------|----------|--------------|------|-----|------------------|---------|
 | **dev** | 10.0.0.0/16 | 3 | 1 | 5 | t3.medium | Yes | No | ~$142/mo | Developer testing, fast iteration |
-| **stage** | 10.1.0.0/16 | 3 | 2 | 8 | t3.large | Yes | No | ~$342/mo | Pre-production validation |
-| **prod** | 10.2.0.0/16 | 3 | 3 | 15 | m5.large | No | Yes | ~$1,842/mo | Production traffic |
+| **stage** | 10.1.0.0/16 | 3 | 2 | 8 | t3.large | Yes | No | ~$332/mo | Pre-production validation |
+| **prod** | 10.2.0.0/16 | 3 | 3 | 15 | m5.large | No | Yes | ~$323/mo | Production traffic |
 
 **Key differences:**
 | Aspect | Dev | Stage | Prod |
@@ -644,7 +635,7 @@ T+20s   Rollback complete                error_rate=0%              ─
 "I'd add a service catalog (Backstage) so developers can discover and create services from templates. I'd also add Kyverno or OPA Gatekeeper for policy enforcement — ensuring every deployment has resource limits, health probes, and security contexts. And I'd implement the Service Mesh (Istio) for mTLS and fine-grained traffic routing."
 
 ### "What does this cost to run?"
-"Based on Infracost estimates, the dev environment costs ~$166/month (mostly NAT gateway + EKS control plane), stage ~$332/month, and prod ~$323/month. The total across all 3 environments is ~$821/month. Dev and stage use spot instances to save ~70% on compute costs. Prod uses on-demand for reliability."
+"Based on Infracost estimates, the dev environment costs ~$142/month (mostly NAT gateway + EKS control plane), stage ~$332/month, and prod ~$323/month. The total across all 3 environments is ~$797/month. Dev and stage use spot instances to save ~70% on compute costs. Prod uses on-demand for reliability."
 
 ### "How fast is the auto-rollback?"
 "From the moment a bad version is deployed, the canary shifts traffic through 5 steps every 30 seconds. At step 2 (25% traffic), the AnalysisTemplate queries Prometheus. If the error rate exceeds 15%, the rollout is aborted and rolled back. End-to-end: ~30-45 seconds from deploy to rollback. Total blast radius is limited to 25% of traffic."
