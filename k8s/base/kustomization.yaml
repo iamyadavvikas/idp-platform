@@ -16,4 +16,4 @@ commonLabels:
 images:
   - name: demo-app
     newName: demo-app
-    newTag: local
+    newTag: latest

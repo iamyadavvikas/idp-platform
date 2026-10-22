@@ -6,7 +6,7 @@ metadata:
 spec:
   description: "Demo application project for IDP"
   sourceRepos:
-    - "https://github.com/sflyinc-shutterfly/idp-platform.git"
+    - "https://github.com/iamyadavvikas/idp-platform.git"
   destinations:
     - namespace: "demo-app-*"
       server: "https://kubernetes.default.svc"
@@ -33,7 +33,7 @@ metadata:
 spec:
   description: "Platform-wide tools (monitoring, ingress, secrets)"
   sourceRepos:
-    - "https://github.com/sflyinc-shutterfly/idp-platform.git"
+    - "https://github.com/iamyadavvikas/idp-platform.git"
     - "https://prometheus-community.github.io/helm-charts"
     - "https://grafana.github.io/helm-charts"
     - "https://argoproj.github.io/argo-helm"

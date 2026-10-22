@@ -6,8 +6,8 @@ metadata:
 spec:
   project: demo-app
   source:
-    repoURL: "https://github.com/sflyinc-shutterfly/idp-platform.git"
-    targetRevision: main
+    repoURL: "https://github.com/iamyadavvikas/idp-platform.git"
+    targetRevision: master
     path: argo-rollouts/demo-app/overlays/prod
   destination:
     server: "https://kubernetes.default.svc"
