@@ -1,0 +1,239 @@
+backstage:
+  image:
+    repository: backstage/backstage
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  replicas: 2
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  
+  livenessProbe:
+    httpGet:
+      path: /healthcheck
+      port: 7007
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  
+  readinessProbe:
+    httpGet:
+      path: /healthcheck
+      port: 7007
+    initialDelaySeconds: 10
+    periodSeconds: 5
+  
+  envFrom:
+    - secretRef:
+        name: backstage-secrets
+        optional: true
+  
+  env:
+    - name: NODE_ENV
+      value: production
+    - name: PORT
+      value: "7007"
+    - name: BACKSTAGE_CATALOG_IMPORT_ENTITY_FILENAME
+      value: catalog-info.yaml
+    - name: BACKSTAGE_CATALOG_IMPORT_FREQUENCY
+      value: "60"
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    hosts:
+      - host: backstage.idp.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: backstage-tls
+        hosts:
+          - backstage.idp.example.com
+  
+  postgresql:
+    enabled: true
+    postgresqlUsername: backstage
+    postgresqlDatabase: backstage
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+
+  # Auth configuration
+  auth:
+    providers:
+      github:
+        development:
+          clientId: ${GITHUB_CLIENT_ID}
+          clientSecret: ${GITHUB_CLIENT_SECRET}
+        production:
+          clientId: ${GITHUB_CLIENT_ID}
+          clientSecret: ${GITHUB_CLIENT_SECRET}
+
+  # Backstage app configuration
+  appConfig:
+    app:
+      title: IDP Platform
+      baseUrl: https://backstage.idp.example.com
+      support:
+        url: https://github.com/yourorg/idp-platform/issues
+        items:
+          - title: Documentation
+            url: https://github.com/yourorg/idp-platform/docs
+          - title: Slack
+            url: https://slack.company.com
+    
+    organization:
+      name: Your Company
+    
+    backend:
+      baseUrl: https://backstage.idp.example.com
+      listen:
+        port: 7007
+      csp:
+        connect-src: ["'self'", "https:", "wss:"]
+        img-src: ["'self'", "data:", "https:"]
+      cors:
+        origin: https://backstage.idp.example.com
+        methods: [GET, HEAD, PATCH, POST, PUT, DELETE, OPTIONS]
+        credentials: true
+      database:
+        client: pg
+        connection:
+          host: ${POSTGRES_HOST}
+          port: 5432
+          user: ${POSTGRES_USER}
+          password: ${POSTGRES_PASSWORD}
+          database: ${POSTGRES_DB}
+          ssl: true
+    
+    auth:
+      environment: development
+      providers:
+        github:
+          development:
+            clientId: ${GITHUB_CLIENT_ID}
+            clientSecret: ${GITHUB_CLIENT_SECRET}
+            signIn:
+              resolvers:
+                - resolver: usernameMatchingUserEntityProfileEmail
+    
+    catalog:
+      locations:
+        - type: github-discovery
+          target: https://github.com/yourorg
+          githubAuthToken: ${GITHUB_TOKEN}
+        - type: file
+          target: ../flux-system/clusters/dev/kustomization.yaml
+          rules:
+            - allow: [Component, API, Resource, System, Domain, Location]
+      providers:
+        github:
+          yourorg:
+            organization: yourorg
+            token: ${GITHUB_TOKEN}
+            schedule:
+              frequency: 5m
+              timeout: 3m
+    
+    argocd:
+      appLocatorMethods:
+        - type: config
+          instances:
+            - name: production
+              url: https://argocd.prod.example.com
+              authToken: ${ARGOCD_TOKEN}
+      projectAnnotation: 'argocd.argoproj.io/project'
+    
+    kubernetes:
+      serviceLocatorMethod:
+        type: multiTenant
+      clusterLocatorMethods:
+        - type: config
+          clusters:
+            - name: dev
+              url: https://idp-dev.eastus.azmk8s.io
+              authProvider: serviceAccount
+              skipTLSVerify: false
+            - name: stage
+              url: https://idp-stage.eastus.azmk8s.io
+              authProvider: serviceAccount
+              skipTLSVerify: false
+            - name: prod
+              url: https://idp-prod.eastus.azmk8s.io
+              authProvider: serviceAccount
+              skipTLSVerify: false
+    
+    githubActions:
+      apps:
+        - instanceUrl: https://github.com
+          baseUrl: https://api.github.com
+          token: ${GITHUB_TOKEN}
+    
+    grafana:
+      - baseUrl: https://grafana.idp.example.com
+        apiKey: ${GRAFANA_API_KEY}
+    
+    loki:
+      - baseUrl: https://loki.idp.example.com
+        apiKey: ${LOKI_API_KEY}
+    
+    techdocs:
+      builder: local
+      generator:
+        runIn: docker
+      publisher:
+        type: local
+      storage:
+        type: s3
+        s3:
+          bucket: idp-techdocs
+          region: eastus
+    
+    proxy:
+      endpoints:
+        - path: /api/v1/argocd
+          target: https://argocd.prod.example.com/api
+          changeOrigin: true
+          secure: true
+          headers:
+            Authorization: Bearer ${ARGOCD_TOKEN}
+        - path: /api/v1/kubernetes
+          target: https://idp-prod.eastus.azmk8s.io
+          changeOrigin: true
+          secure: true
+        - path: /api/v1/grafana
+          target: https://grafana.idp.example.com
+          changeOrigin: true
+          secure: true
+
+  service:
+    type: ClusterIP
+    port: 7007
+
+  networkPolicy:
+    enabled: true
+
+  rbac:
+    enabled: true
+
+  serviceAccount:
+    create: true
+    annotations:
+      azure.workload.identity/client-id: ""

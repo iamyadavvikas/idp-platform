@@ -1,0 +1,113 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: monitoring
+spec:
+  interval: 10m0s
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "55.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+      interval: 10m0s
+  values:
+    grafana:
+      enabled: true
+      adminPassword: "changeme"
+      persistence:
+        enabled: true
+        size: 10Gi
+      sidecar:
+        datasources:
+          enabled: true
+        dashboards:
+          enabled: true
+    prometheus:
+      enabled: true
+      retention: 15d
+      retentionSize: 10GB
+      prometheusSpec:
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        ruleSelectorNilUsesHelmValues: false
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+    alertmanager:
+      enabled: true
+      alertmanagerSpec:
+        retention: 120h
+    nodeExporter:
+      enabled: true
+    kubeStateMetrics:
+      enabled: true
+  valuesFrom:
+    - kind: Secret
+      name: monitoring-secrets
+      valuesKey: prometheus.yaml
+      optional: true
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: loki
+  namespace: monitoring
+spec:
+  interval: 10m0s
+  chart:
+    spec:
+      chart: loki
+      version: "6.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+      interval: 10m0s
+  values:
+    loki:
+      auth_enabled: false
+      schemaConfig:
+        configs:
+          - from: "2024-01-01"
+            store: boltdb-shipper
+            object_store: filesystem
+            schema: v12
+            index:
+              prefix: index_
+              period: 24h
+      limits_config:
+        ingestion_rate_mb: 10
+        ingestion_burst_size_mb: 20
+    promtail:
+      enabled: true
+  valuesFrom:
+    - kind: Secret
+      name: monitoring-secrets
+      valuesKey: loki.yaml
+      optional: true
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: prometheus-community
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  url: https://prometheus-community.github.io/helm-charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  url: https://grafana.github.io/helm-charts

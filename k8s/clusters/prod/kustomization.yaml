@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: demo-app
+
+resources:
+  - ../../base
+
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: demo-app
+        namespace: demo-app
+      spec:
+        replicas: 5
+    target:
+      kind: Deployment
+      name: demo-app
+  - patch: |-
+      apiVersion: flagger.app/v1beta1
+      kind: Canary
+      metadata:
+        name: demo-app
+        namespace: demo-app
+      spec:
+        analysis:
+          threshold: 10
+          maxWeight: 100
+          stepWeight: 5
+    target:
+      kind: Canary
+      name: demo-app
+
+commonLabels:
+  environment: prod

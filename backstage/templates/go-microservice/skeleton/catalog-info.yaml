@@ -1,0 +1,44 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: {{name}}
+  description: {{description}}
+  annotations:
+    github.com/project-slug: {{repoUrl | parseRepoUrl}}
+    backstage.io/techdocs-ref: dir:.
+    argocd/app-name: {{name}}
+  tags:
+    - go
+    - microservice
+    - idp
+  links:
+    - url: {{repoUrl}}
+      title: Source Code
+      icon: github
+    - url: {{repoUrl}}/actions
+      title: CI/CD
+      icon: github-actions
+    - url: https://grafana.idp.example.com/d/{{name}}
+      title: Grafana Dashboard
+      icon: grafana
+    - url: https://argocd.prod.example.com/applications/{{name}}
+      title: ArgoCD
+      icon: argocd
+spec:
+  type: service
+  lifecycle: production
+  owner: {{owner}}
+  system: {{system}}
+  dependsOn: {{dependsOn}}
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: {{name}}
+  description: {{description}}
+spec:
+  type: openapi
+  lifecycle: production
+  owner: {{owner}}
+  definition:
+    $text: https://raw.githubusercontent.com/{{repoUrl | parseRepoUrl}}/main/docs/openapi.yaml

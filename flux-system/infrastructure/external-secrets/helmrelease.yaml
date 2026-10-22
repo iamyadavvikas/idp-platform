@@ -1,0 +1,37 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-secrets
+  namespace: external-secrets
+spec:
+  interval: 10m0s
+  chart:
+    spec:
+      chart: external-secrets
+      version: "0.16.0"
+      sourceRef:
+        kind: HelmRepository
+        name: external-secrets
+        namespace: flux-system
+      interval: 10m0s
+  values:
+    installCRDs: true
+    serviceAccount:
+      create: true
+      name: external-secrets
+      annotations:
+        azure.workload.identity/client-id: ""
+  valuesFrom:
+    - kind: Secret
+      name: external-secrets-config
+      valuesKey: config.yaml
+      optional: true
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: external-secrets
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  url: https://charts.external-secrets.io

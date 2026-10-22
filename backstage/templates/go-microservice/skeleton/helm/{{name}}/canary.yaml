@@ -1,0 +1,42 @@
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: {{name}}
+  namespace: {{name}}
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{name}}
+  progressDeadlineSeconds: 60
+  service:
+    port: 80
+    targetPort: 8080
+    portName: http
+  analysis:
+    interval: 30s
+    threshold: 5
+    maxWeight: 100
+    stepWeight: 10
+    metrics:
+      - name: request-success-rate
+        thresholdRange:
+          min: 99
+        interval: 30s
+        provider:
+          prometheus:
+            address: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+            query: |
+              sum(rate(http_requests_total{namespace="{{name}}",status!~"5.."}[2m]))
+              /
+              sum(rate(http_requests_total{namespace="{{name}}"}[2m])) * 100
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{name}}
+  namespace: {{name}}
+  annotations:
+    {{- if workloadIdentity }}
+    azure.workload.identity/client-id: ""
+    {{- end }}

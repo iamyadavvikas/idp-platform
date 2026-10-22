@@ -1,0 +1,112 @@
+name: Azure Build & Deploy Demo App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "demo-app/**"
+      - "k8s/**"
+      - "flux-system/**"
+  workflow_dispatch:
+
+env:
+  REGISTRY: yourregistry.azurecr.io
+  IMAGE_NAME: demo-app
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to Azure Container Registry
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./demo-app/app
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Output image digest
+        run: echo "Image pushed: ${{ steps.meta.outputs.tags }}"
+
+  update-flux:
+    name: Update Flux Image Policy
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Flux ImagePolicy
+        run: |
+          # Update the ImagePolicy to pick up the new image
+          # This is handled automatically by Flux Image Reflector
+          echo "Flux Image Reflector will detect the new image in ACR"
+          echo "Image Automation will update the Kustomization"
+
+  deploy-k8s:
+    name: Deploy K8s Manifests
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get AKS Credentials (dev)
+        run: |
+          az aks get-credentials \
+            --resource-group dev-aks-rg \
+            --name idp-dev \
+            --overwrite-existing
+
+      - name: Validate Kustomize Build
+        run: |
+          kustomize build k8s/clusters/dev
+
+      - name: Apply Kustomization (dev)
+        run: |
+          kubectl apply -k k8s/clusters/dev

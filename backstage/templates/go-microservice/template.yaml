@@ -1,0 +1,236 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: go-microservice
+  title: Go Microservice (IDP Standard)
+  description: Create a production-ready Go microservice with Docker, Helm, Flux, Terraform, CI/CD, and observability
+  tags:
+    - go
+    - microservice
+    - idp
+    - azure
+    - aks
+    - flux
+spec:
+  owner: platform-team
+  type: service
+
+  parameters:
+    - title: Service Details
+      required:
+        - name
+        - owner
+        - description
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Unique name of the service (lowercase, hyphens only)
+          pattern: '^[a-z][a-z0-9-]*$'
+          minLength: 3
+          maxLength: 50
+          ui:field: ServiceNamePicker
+          ui:options:
+            allowedPrefixes: []
+        description:
+          title: Description
+          type: string
+          description: Brief description of what this service does
+          minLength: 10
+          maxLength: 200
+        owner:
+          title: Owner
+          type: string
+          description: Team that owns this service
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        repoUrl:
+          title: GitHub Repository URL
+          type: string
+          description: URL of the GitHub repository to create
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOwners:
+              - yourorg
+        system:
+          title: System
+          type: string
+          description: System this service belongs to
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: System
+        dependsOn:
+          title: Dependencies
+          type: array
+          description: Other services this service depends on
+          items:
+            type: string
+            ui:field: EntityPicker
+            ui:options:
+              catalogFilter:
+                kind: Component
+
+    - title: Platform Configuration
+      required:
+        - environments
+      properties:
+        environments:
+          title: Target Environments
+          type: array
+          description: Environments to deploy to
+          items:
+            type: string
+            enum: [dev, stage, prod]
+          default: [dev, stage, prod]
+          ui:widget: checkboxes
+        database:
+          title: Database
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              title: Enable PostgreSQL
+              default: true
+            engine:
+              type: string
+              enum: [postgresql, mysql]
+              default: postgresql
+            version:
+              type: string
+              default: "15"
+            instanceSize:
+              type: string
+              enum: [small, medium, large]
+              default: small
+        resources:
+          title: Default Resources
+          type: object
+          properties:
+            cpuRequest:
+              type: string
+              default: "100m"
+            cpuLimit:
+              type: string
+              default: "500m"
+            memoryRequest:
+              type: string
+              default: "128Mi"
+            memoryLimit:
+              type: string
+              default: "256Mi"
+        replicas:
+          title: Default Replicas
+          type: object
+          properties:
+            dev:
+              type: integer
+              default: 2
+            stage:
+              type: integer
+              default: 3
+            prod:
+              type: integer
+              default: 5
+        ingress:
+          title: Ingress Configuration
+          type: object
+          properties:
+            public:
+              type: boolean
+              title: Public Internet Access
+              default: false
+            path:
+              type: string
+              default: "/"
+        observability:
+          title: Observability
+          type: object
+          properties:
+            metrics:
+              type: boolean
+              default: true
+            logging:
+              type: boolean
+              default: true
+            tracing:
+              type: boolean
+              default: false
+            healthChecks:
+              type: boolean
+              default: true
+
+    - title: Security
+      required:
+        - workloadIdentity
+      properties:
+        workloadIdentity:
+          title: Enable Workload Identity
+          type: boolean
+          description: Use Azure Workload Identity for pod authentication
+          default: true
+        networkPolicies:
+          title: Enable Network Policies
+          type: boolean
+          default: true
+        allowExternalEgress:
+          title: Allow External Egress
+          type: boolean
+          default: false
+          description: Allow outbound internet access (required for some APIs)
+
+  steps:
+    - id: fetch-base
+      name: Fetch Skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        copyWithoutRender:
+          - .github/workflows/*.yml
+          - .github/dependabot.yml
+          - .golangci.yml
+          - .pre-commit-config.yaml
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          repoUrl: ${{ parameters.repoUrl }}
+          system: ${{ parameters.system }}
+          dependsOn: ${{ parameters.dependsOn }}
+          environments: ${{ parameters.environments }}
+          database: ${{ parameters.database }}
+          resources: ${{ parameters.resources }}
+          replicas: ${{ parameters.replicas }}
+          ingress: ${{ parameters.ingress }}
+          observability: ${{ parameters.observability }}
+          workloadIdentity: ${{ parameters.workloadIdentity }}
+          networkPolicies: ${{ parameters.networkPolicies }}
+          allowExternalEgress: ${{ parameters.allowExternalEgress }}
+
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        allowedHosts: ["github.com"]
+        description: This is ${{ parameters.name }}, a Go microservice built with IDP standards
+        repoUrl: ${{ parameters.repoUrl }}
+        repoVisibility: private
+
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in Catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
