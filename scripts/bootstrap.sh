@@ -48,7 +48,7 @@ kubectl apply -f "$(dirname "$0")/../argocd/applications/$ENVIRONMENT.yaml"
 echo ">>> Installing Prometheus Stack..."
 kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
   --namespace monitoring \
   --values "$(dirname "$0")/../monitoring/prometheus/prometheus-values.yaml" \
   --wait

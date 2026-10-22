@@ -8,11 +8,7 @@ spec:
   source:
     repoURL: "https://github.com/sflyinc-shutterfly/idp-platform.git"
     targetRevision: main
-    path: argo-rollouts/demo-app
-    kustomize:
-      overlays:
-        - name: env
-          value: stage
+    path: argo-rollouts/demo-app/overlays/stage
   destination:
     server: "https://kubernetes.default.svc"
     namespace: demo-app-stage

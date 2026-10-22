@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../..
+
+namespace: demo-app-stage
+
+patches:
+  - patch: |-
+      apiVersion: argoproj.io/v1alpha1
+      kind: Rollout
+      metadata:
+        name: demo-app
+      spec:
+        template:
+          spec:
+            containers:
+              - name: demo-app
+                env:
+                  - name: ENVIRONMENT
+                    value: stage
+                  - name: VERSION
+                    value: "1.0.0"
+    target:
+      kind: Rollout
+      name: demo-app

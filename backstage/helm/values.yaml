@@ -208,17 +208,17 @@ backstage:
     
     proxy:
       endpoints:
-        - path: /api/v1/argocd
+        '/api/v1/argocd':
           target: https://argocd.prod.example.com/api
           changeOrigin: true
           secure: true
           headers:
             Authorization: Bearer ${ARGOCD_TOKEN}
-        - path: /api/v1/kubernetes
+        '/api/v1/kubernetes':
           target: https://idp-prod.eastus.azmk8s.io
           changeOrigin: true
           secure: true
-        - path: /api/v1/grafana
+        '/api/v1/grafana':
           target: https://grafana.idp.example.com
           changeOrigin: true
           secure: true

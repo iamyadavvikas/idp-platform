@@ -15,5 +15,5 @@ commonLabels:
 
 images:
   - name: demo-app
-    newName: yourregistry.azurecr.io/demo-app
-    newTag: latest
+    newName: demo-app
+    newTag: local

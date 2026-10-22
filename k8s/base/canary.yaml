@@ -13,10 +13,6 @@ spec:
     port: 80
     targetPort: 8080
     portName: http
-    gateways:
-      - mesh-gateway
-    hosts:
-      - demo-app.idp.example.com
   analysis:
     interval: 30s
     threshold: 5
@@ -34,15 +30,15 @@ spec:
               sum(rate(http_requests_total{namespace="demo-app",status!~"5.."}[2m]))
               /
               sum(rate(http_requests_total{namespace="demo-app"}[2m])) * 100
-      - name: request-duration-p99
+      - name: request-error-rate
         thresholdRange:
-          max: 500
+          max: 0.05
         interval: 30s
         provider:
           prometheus:
             address: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
             query: |
-              histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace="demo-app"}[2m])) by (le))
+              max(http_requests_error_rate{namespace="demo-app"})
     webhooks:
       - name: "load-test"
         url: http://flagger-loadtester.demo-app/

@@ -22,6 +22,15 @@ server:
     - "web.enable-lifecycle"
     - "storage.tsdb.no-lockfile"
 
+# Select every ServiceMonitor in the cluster instead of only the ones labelled
+# with the Helm release name, so the same manifests work whether the stack was
+# installed by this script or by the Flux HelmRelease.
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
 alertmanager:
   enabled: true
   persistentVolume:
